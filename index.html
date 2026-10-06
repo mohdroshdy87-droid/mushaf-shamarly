@@ -286,6 +286,26 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
 }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
 
+/* ===== تلميح تثبيت المصحف على الآيفون ===== */
+.install-sheet { gap: 14px; }
+.install-head { display: flex; align-items: center; gap: 14px; }
+.install-head img { width: 56px; height: 56px; border-radius: 13px; box-shadow: 0 2px 8px rgba(0,0,0,.18); flex: none; }
+.install-head h2 { text-align: start; font-size: 21px; }
+.install-head p { margin: 2px 0 0; font-size: 13px; color: var(--muted); line-height: 1.6; }
+.install-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; counter-reset: step; }
+.install-steps li { counter-increment: step; display: flex; align-items: flex-start; gap: 12px; font-size: 15px; line-height: 1.7; }
+.install-steps li::before {
+  content: counter(step, arabic-indic); flex: none; width: 26px; height: 26px; margin-top: 1px; border-radius: 50%;
+  background: var(--gold-soft); color: var(--gold); font-weight: 700; font-size: 14px; display: grid; place-items: center;
+}
+.install-steps small { display: block; color: var(--muted); font-size: 12.5px; }
+.install-steps svg, .install-note svg {
+  display: inline-block; width: 20px; height: 20px; vertical-align: -4px; margin-inline: 2px;
+  fill: none; stroke: var(--primary); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
+}
+.install-note { margin: 0; }
+.install-ok { padding: 12px; }
+
 /* ===== شاشة البداية ===== */
 #splash {
   position: fixed; inset: 0; z-index: 100; background: var(--bg);
@@ -536,6 +556,37 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
       <span><b>تلاوة بجودة عالية</b><small>الصوت الأصلي من mp3quran، ويستهلك إنترنت أكثر (حوالي ٤٥ ميجا في الساعة بدل ٥)</small></span>
       <input type="checkbox" id="hqToggle" role="switch">
     </label>
+    <div class="switch-row" id="installRow" hidden>
+      <span><b>تثبيت المصحف على الشاشة الرئيسية</b><small>ليفتح من أيقونته مثل التطبيق</small></span>
+      <button class="text-btn" id="btnInstallHint" type="button">الطريقة</button>
+    </div>
+  </section>
+
+  <!-- ===== تثبيت المصحف على الشاشة الرئيسية (آيفون وآيباد) ===== -->
+  <div id="installBackdrop" class="backdrop" hidden></div>
+  <section id="installSheet" class="sheet install-sheet" aria-hidden="true" aria-label="تثبيت المصحف على الشاشة الرئيسية">
+    <span class="grabber"></span>
+    <div class="install-head">
+      <img src="icons/apple-touch-icon.png" alt="" width="56" height="56">
+      <div>
+        <h2>ثبّت المصحف على الآيفون</h2>
+        <p>يفتح من أيقونته مثل أي تطبيق، على الشاشة كاملة، والشاشة لا تنطفئ أثناء القراءة.</p>
+      </div>
+    </div>
+    <ol class="install-steps">
+      <li id="installStepOpen" hidden><span>افتح الرابط في <b>Safari</b> أولاً<small>من زر <b>•••</b> اختر «فتح في المتصفح» أو «فتح في Safari»</small></span></li>
+      <li><span>اضغط زر المشاركة
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M8 7l4-4 4 4M7.5 10H6v11h12V10h-1.5"/></svg>
+        <small id="installShareWhere">أسفل الشاشة، وإن لم يظهر فاضغط <b>•••</b> ثم «مشاركة»</small></span></li>
+      <li><span>اختر <b>«إضافة إلى الشاشة الرئيسية»</b>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8.5v7M8.5 12h7"/></svg>
+        <small>إن لم تجدها فاسحب القائمة لأسفل</small></span></li>
+      <li><span>اضغط <b>«إضافة»</b>، ثم افتح المصحف من أيقونته</span></li>
+    </ol>
+    <p class="hint install-note" id="installNote">فتحت الرابط من واتساب؟ اضغط أيقونة Safari
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/></svg>
+      أولاً ليفتح في Safari، ثم اتبع الخطوات.</p>
+    <button class="pill-btn install-ok" id="installOk" type="button">فهمت</button>
   </section>
 
   <!-- ===== موضع الوقوف ===== -->
@@ -1854,10 +1905,50 @@ window.MUSHAF_DATA = {
     toastTimer = setTimeout(function () { t.classList.remove('show'); }, 2000);
   }
 
+  // ===== تلميح تثبيت المصحف على الشاشة الرئيسية (آيفون وآيباد فقط) =====
+  // أندرويد يعرض زر التثبيت بنفسه، أما الآيفون فالتثبيت من قائمة المشاركة في المتصفح.
+  var ua = navigator.userAgent;
+  var isIOS = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  var isStandalone = navigator.standalone === true ||
+    !!(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+  var installSheet = $('installSheet'), installBackdrop = $('installBackdrop');
+  var HINT_KEY = 'mushaf.iosInstallHint';
+  function openInstallHint() {
+    installBackdrop.hidden = false; installSheet.classList.add('open'); installSheet.setAttribute('aria-hidden', 'false');
+  }
+  function closeInstallHint() {
+    installSheet.classList.remove('open'); installSheet.setAttribute('aria-hidden', 'true'); installBackdrop.hidden = true;
+    try { localStorage.setItem(HINT_KEY, String(Date.now())); } catch (e) { /* ignore */ }
+  }
+  if (isIOS && !isStandalone && !framed && !inApp) {
+    if (/FBAN|FBAV|Instagram|Line\/|Snapchat|Twitter|TikTok|musical_ly|GSA\//.test(ua)) {
+      $('installStepOpen').hidden = false; $('installNote').hidden = true;
+    } else if (/CriOS|FxiOS|EdgiOS|OPiOS/.test(ua)) {
+      $('installShareWhere').textContent = 'بجوار شريط العنوان';
+      $('installNote').hidden = true;
+    }
+    $('installOk').addEventListener('click', closeInstallHint);
+    installBackdrop.addEventListener('click', closeInstallHint);
+    $('installRow').hidden = false;
+    $('btnInstallHint').addEventListener('click', function () { closeSheet(); openInstallHint(); });
+    var hintShown = 0;
+    try { hintShown = +localStorage.getItem(HINT_KEY) || 0; } catch (e) { /* ignore */ }
+    if (Date.now() - hintShown > 30 * 24 * 3600 * 1000) {
+      var hintTries = 0;
+      var showHintWhenFree = function () {
+        var busy = document.querySelector('.sheet.open, .panel.open') || !$('gotoDialog').hidden;
+        if (!busy) openInstallHint();
+        else if (++hintTries < 6) setTimeout(showHintWhenFree, 8000);
+      };
+      setTimeout(showHintWhenFree, 3500);
+    }
+  }
+
   // ===== زر الرجوع ومفتاح Esc يغلقان النوافذ المفتوحة =====
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;
-    if (!dialog.hidden) closeGoto();
+    if (installSheet.classList.contains('open')) closeInstallHint();
+    else if (!dialog.hidden) closeGoto();
     else if (sheet.classList.contains('open')) closeSheet();
     else if (ayahSheet.classList.contains('open')) closeAyahSheet();
     else if (markSheet.classList.contains('open')) closeMarkSheet();
