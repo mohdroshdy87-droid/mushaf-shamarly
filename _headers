@@ -1,0 +1,10 @@
+/p/*
+  Cache-Control: public, max-age=2592000
+/a/*
+  Cache-Control: public, max-age=2592000
+/v/*
+  Cache-Control: public, max-age=2592000
+/vendor/*
+  Cache-Control: public, max-age=2592000
+/manifest.webmanifest
+  Content-Type: application/manifest+json
