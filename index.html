@@ -775,7 +775,7 @@ window.MUSHAF_DATA = {
   function pad(n) { return String(n).padStart(3, '0'); }
   // كل ملف صورة فيه صفحتان متجاورتان: الفردية يساراً والزوجية يميناً.
   function pairIndex(n) { return Math.ceil(n / 2); }
-  function pairSrc(n) { return 'p/' + pad(pairIndex(n)) + '.webp'; }
+  function pairSrc(n) { return 'P/' + pad(pairIndex(n)) + '.webp'; }
   function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
   function $(id) { return document.getElementById(id); }
 
@@ -873,7 +873,7 @@ window.MUSHAF_DATA = {
     var img = new Image();
     img.onload = function () { var q = pairState[k]; pairState[k] = 'ok'; q.forEach(function (f) { f('ok'); }); };
     img.onerror = function () { var q = pairState[k]; pairState[k] = 'err'; q.forEach(function (f) { f('err'); }); };
-    img.src = 'p/' + pad(k) + '.webp';
+    img.src = 'P/' + pad(k) + '.webp';
   }
   function markLoaded(el) {
     var n = +el.dataset.page;
