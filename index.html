@@ -306,6 +306,16 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
 .install-note { margin: 0; }
 .install-ok { padding: 12px; }
 
+/* ===== تنبيه الحفظ وفحص الجهاز ===== */
+.store-text { margin: 0; font-size: 14.5px; line-height: 1.7; }
+.diag { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 7px 14px; font-size: 14px; max-height: 52vh; overflow: auto; }
+.diag dt { color: var(--muted); }
+.diag dd { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
+.diag dd.good { color: var(--primary); }
+.diag dd.bad { color: #B3261E; }
+:root.night .diag dd.bad { color: #F2B8B5; }
+.diag dd.ua { font-weight: 400; font-size: 11.5px; color: var(--muted); direction: ltr; text-align: left; }
+
 /* ===== شاشة البداية ===== */
 #splash {
   position: fixed; inset: 0; z-index: 100; background: var(--bg);
@@ -560,6 +570,38 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
       <span><b>تثبيت المصحف على الشاشة الرئيسية</b><small>ليفتح من أيقونته مثل التطبيق</small></span>
       <button class="text-btn" id="btnInstallHint" type="button">الطريقة</button>
     </div>
+    <div class="switch-row">
+      <span><b>فحص الجهاز</b><small>هل الحفظ وإبقاء الشاشة يعملان على هذا الجهاز</small></span>
+      <button class="text-btn" id="btnDiag" type="button">عرض</button>
+    </div>
+  </section>
+
+  <!-- ===== تنبيه: الحفظ متوقف على هذا الجهاز ===== -->
+  <div id="storeBackdrop" class="backdrop" hidden></div>
+  <section id="storeSheet" class="sheet install-sheet" aria-hidden="true" aria-label="الحفظ متوقف">
+    <span class="grabber"></span>
+    <h2>العلامات لا تُحفظ على هذا الجهاز</h2>
+    <p class="store-text">المتصفح يمنع المصحف من حفظ البيانات، لذلك يبدأ من الفاتحة كل مرة وتضيع العلامات. لإصلاح ذلك:</p>
+    <ol class="install-steps" id="storeStepsIOS">
+      <li><span>افتح <b>الإعدادات</b> ثم <b>Safari</b><small>في الإصدارات الأحدث: الإعدادات ← التطبيقات ← Safari</small></span></li>
+      <li><span>أوقف <b>«حظر جميع ملفات تعريف الارتباط»</b><small>Block All Cookies</small></span></li>
+      <li><span>لا تفتح المصحف من نافذة <b>تصفح خاص</b>، ثم أغلقه وافتحه من جديد</span></li>
+    </ol>
+    <ol class="install-steps" id="storeStepsOther" hidden>
+      <li><span>لا تفتح المصحف من نافذة <b>التصفح المتخفي</b> أو الخاص</span></li>
+      <li><span>من إعدادات المتصفح اسمح للمواقع بحفظ البيانات (ملفات تعريف الارتباط)</span></li>
+    </ol>
+    <button class="pill-btn install-ok" id="storeOk" type="button">حسناً</button>
+  </section>
+
+  <!-- ===== فحص الجهاز ===== -->
+  <div id="diagBackdrop" class="backdrop" hidden></div>
+  <section id="diagSheet" class="sheet" aria-hidden="true" aria-label="فحص الجهاز">
+    <span class="grabber"></span>
+    <h2>فحص الجهاز</h2>
+    <p class="hint">صوّر هذه الشاشة وأرسلها لمن يساعدك في حل أي مشكلة.</p>
+    <dl class="diag" id="diagList"></dl>
+    <button class="pill-btn install-ok" id="diagOk" type="button">إغلاق</button>
   </section>
 
   <!-- ===== تثبيت المصحف على الشاشة الرئيسية (آيفون وآيباد) ===== -->
@@ -865,8 +907,19 @@ window.MUSHAF_DATA = {
   // ===== الحفظ على الجهاز =====
   var KEY = 'mushaf-shamarly';
   var state = { last: null, bookmarks: [], night: null, dim: 100, fill: true, awake: true, hq: true };
-  try { Object.assign(state, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { /* وضع التصفح الخاص */ }
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* ignore */ } }
+  var storeError = '';
+  try { Object.assign(state, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { storeError = (e && e.name) || 'Error'; }
+  // هل يسمح المتصفح بالحفظ أصلاً؟ (التصفح الخاص أو «حظر كل ملفات تعريف الارتباط» يمنعانه)
+  var storageOK = (function () {
+    try {
+      localStorage.setItem('mushaf-probe', '1');
+      var ok = localStorage.getItem('mushaf-probe') === '1';
+      localStorage.removeItem('mushaf-probe');
+      return ok;
+    } catch (e) { storeError = storeError || (e && e.name) || 'Error'; return false; }
+  })();
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); storeError = ''; } catch (e) { storeError = (e && e.name) || 'Error'; } }
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function () {}); } catch (e) { /* ignore */ }
   function isBookmarked(p) { return state.bookmarks.some(function (b) { return b.p === p; }); }
 
   // ===== المظهر =====
@@ -1291,7 +1344,17 @@ window.MUSHAF_DATA = {
   // داخل إطار (لينك claude.ai) أمر Wake Lock ممنوع، فنستخدم الفيديو مباشرة.
   // على لينك خاص (صفحة مستقلة) نستخدم الأمر الرسمي، والفيديو احتياطي فقط.
   var framed = (function () { try { return window.self !== window.top; } catch (e) { return true; } })();
-  var wake = { lock: null, video: null, pending: false, fails: 0, noApi: framed || !('wakeLock' in navigator) };
+  var IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  var STANDALONE = navigator.standalone === true ||
+    !!(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+  function iosVersion() {
+    var ua = navigator.userAgent, m = ua.match(/Version\/(\d+)\.(\d+)/);
+    if (!m && /iPhone|iPad|iPod/.test(ua)) m = ua.match(/OS (\d+)_(\d+)/);
+    return m ? +m[1] + (+m[2]) / 100 : 99;
+  }
+  // آيفون قبل iOS 18.4: من أيقونة الشاشة الرئيسية أمر Wake Lock «يُقبل» لكنه لا يمنع انطفاء الشاشة (خطأ معروف في iOS)، فنستخدم الفيديو.
+  var oldIOSApp = IOS && STANDALONE && iosVersion() < 18.04;
+  var wake = { lock: null, video: null, pending: false, fails: 0, err: '', noApi: framed || !('wakeLock' in navigator) || oldIOSApp };
   function wantAwake() { return state.awake !== false; }
   function awakeVideo() {
     if (!wake.video) {
@@ -1299,20 +1362,21 @@ window.MUSHAF_DATA = {
       v.setAttribute('playsinline', ''); v.setAttribute('webkit-playsinline', '');
       v.setAttribute('aria-hidden', 'true'); v.setAttribute('tabindex', '-1');
       v.muted = false; v.preload = 'auto'; v.src = 'v/awake.mp4';
+      v.addEventListener('error', function () { wake.err = 'video error ' + (v.error ? v.error.code : ''); });
       v.style.cssText = 'position:fixed;left:0;bottom:0;width:4px;height:4px;opacity:0.01;pointer-events:none;z-index:1';
       // نرجع لأول الفيديو قبل نهايته بثوانٍ، فلا يتوقف أبداً (التوقف لحظة يكفي لتنطفئ الشاشة)
       v.addEventListener('timeupdate', function () {
         if (v.duration && isFinite(v.duration) && v.currentTime > v.duration - 15) v.currentTime = 2;
       });
       v.addEventListener('ended', function () {
-        if (!wantAwake() || wake.lock) return;
+        if (!wantAwake() || (wake.lock && !IOS)) return;
         v.currentTime = 0; v.play().catch(function () {});
       });
       // لو أوقفه الهاتف (مكالمة، تطبيق آخر…) نعيد تشغيله، إلا أثناء التلاوة حتى لا نقطعها
       v.addEventListener('pause', function () {
         if (wake.stopping) return;
         setTimeout(function () {
-          if (!v.paused || !wantAwake() || wake.lock || wake.stopping || document.visibilityState !== 'visible') return;
+          if (!v.paused || !wantAwake() || (wake.lock && !IOS) || wake.stopping || document.visibilityState !== 'visible') return;
           if (typeof audio === 'object' && audio && !audio.paused) return;
           v.play().catch(function () {});
         }, 1500);
@@ -1320,26 +1384,33 @@ window.MUSHAF_DATA = {
       document.body.appendChild(v);
       wake.video = v;
     }
-    if (wake.video.paused) wake.video.play().catch(function () { /* تبدأ مع أول لمسة على الصفحة */ });
+    // لا نبدأ الفيديو أثناء التلاوة حتى لا يقطعها الآيفون؛ يبدأ بعد توقفها
+    var reciting = typeof audio === 'object' && audio && !audio.paused;
+    if (wake.video.paused && !reciting) {
+      wake.video.play().then(function () { wake.err = ''; })
+        .catch(function (e) { wake.err = 'video ' + ((e && e.name) || 'blocked'); /* تبدأ مع أول لمسة على الصفحة */ });
+    }
   }
   // داخل تطبيق الموبايل (Wron) التطبيق نفسه يبقي الشاشة مضاءة
   var inApp = /MushafApp/.test(navigator.userAgent);
   if (inApp) { var aw = $('awakeToggle'); if (aw && aw.closest('.switch-row')) aw.closest('.switch-row').hidden = true; }
   function keepAwake() {
-    if (inApp || !wantAwake() || document.visibilityState !== 'visible' || wake.lock) return;
+    if (inApp || !wantAwake() || document.visibilityState !== 'visible') return;
     wake.stopping = false;
-    if (wake.noApi) { awakeVideo(); return; }          // مباشرة داخل اللمسة نفسها حتى يسمح المتصفح بالتشغيل
-    if (wake.pending) return;
+    // على الآيفون نشغّل الفيديو دائماً (يعمل في كل الإصدارات)، ومعه الأمر الرسمي إن وُجد
+    if (wake.noApi || IOS) awakeVideo();             // مباشرة داخل اللمسة نفسها حتى يسمح المتصفح بالتشغيل
+    if (wake.noApi || wake.lock || wake.pending) return;
     wake.pending = true;
     navigator.wakeLock.request('screen').then(function (l) {
-      wake.pending = false; wake.fails = 0; wake.lock = l;
-      if (wake.video) wake.video.pause();
+      wake.pending = false; wake.fails = 0; wake.lock = l; wake.err = '';
+      if (wake.video && !IOS) wake.video.pause();
       l.addEventListener('release', function () {
         wake.lock = null;
         if (document.visibilityState === 'visible') keepAwake();
       });
-    }).catch(function () {
+    }).catch(function (e) {
       wake.pending = false;
+      wake.err = (e && (e.name + ': ' + e.message)) || 'rejected';
       // أول رفض قد يكون لأنه قبل أي لمسة؛ لو رُفض ثانيةً نستخدم الفيديو من اللمسة التالية
       if (++wake.fails >= 2) wake.noApi = true;
     });
@@ -1905,12 +1976,67 @@ window.MUSHAF_DATA = {
     toastTimer = setTimeout(function () { t.classList.remove('show'); }, 2000);
   }
 
+  // ===== تنبيه: الحفظ متوقف على هذا الجهاز، وشاشة «فحص الجهاز» =====
+  var BUILD = '2026-10-08';
+  var storeSheet = $('storeSheet'), storeBackdrop = $('storeBackdrop');
+  var diagSheet = $('diagSheet'), diagBackdrop = $('diagBackdrop');
+  function showSheet(s, b) { b.hidden = false; s.classList.add('open'); s.setAttribute('aria-hidden', 'false'); }
+  function hideSheet(s, b) { s.classList.remove('open'); s.setAttribute('aria-hidden', 'true'); b.hidden = true; }
+  $('storeOk').addEventListener('click', function () { hideSheet(storeSheet, storeBackdrop); });
+  storeBackdrop.addEventListener('click', function () { hideSheet(storeSheet, storeBackdrop); });
+  $('diagOk').addEventListener('click', function () { hideSheet(diagSheet, diagBackdrop); });
+  diagBackdrop.addEventListener('click', function () { hideSheet(diagSheet, diagBackdrop); });
+  var storeNoticeShown = false;
+  if (!storageOK && !framed && !inApp) {
+    storeNoticeShown = true;
+    if (!IOS) { $('storeStepsIOS').hidden = true; $('storeStepsOther').hidden = false; }
+    setTimeout(function () {
+      if (!document.querySelector('.sheet.open, .panel.open')) showSheet(storeSheet, storeBackdrop);
+    }, 3500);
+  }
+  // الآيفون يوقف فيديو إبقاء الشاشة أثناء التلاوة، فنعيده بعد توقفها
+  ['pause', 'ended'].forEach(function (ev) {
+    audio.addEventListener(ev, function () { if (wake.noApi || IOS) setTimeout(keepAwake, 600); });
+  });
+  function osLabel() {
+    var ua = navigator.userAgent, m;
+    if (IOS) {
+      m = ua.match(/OS (\d+)_(\d+)(?:_(\d+))?/);
+      var v = ua.match(/Version\/([\d.]+)/);
+      return 'iOS ' + (m ? m[1] + '.' + m[2] + (m[3] ? '.' + m[3] : '') : '?') + (v ? ' · Safari ' + v[1] : '');
+    }
+    if ((m = ua.match(/Android ([\d.]+)/))) return 'Android ' + m[1];
+    return navigator.platform || '?';
+  }
+  function renderDiag() {
+    var stored = null;
+    try { stored = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { /* ignore */ }
+    var saving = storageOK && !storeError;
+    var awakeNow = !!wake.lock || !!(wake.video && !wake.video.paused);
+    var rows = [
+      ['إصدار المصحف', BUILD, ''],
+      ['النظام', osLabel(), ''],
+      ['من الشاشة الرئيسية', STANDALONE ? 'نعم' : 'لا', ''],
+      ['حفظ البيانات', saving ? 'يعمل' : 'متوقف' + (storeError ? ' (' + storeError + ')' : ''), saving ? 'good' : 'bad'],
+      ['المحفوظ', stored ? 'صفحة ' + ar(stored.last || 1) + ' · ' + ar((stored.bookmarks || []).length) + ' علامة' : 'لا شيء', stored || saving ? '' : 'bad'],
+      ['إبقاء الشاشة', !wantAwake() ? 'مقفول من الإعدادات' : (awakeNow ? 'يعمل' : 'متوقف'), awakeNow ? 'good' : 'bad'],
+      ['الطريقة', wake.noApi ? 'فيديو' : (IOS ? 'فيديو + Wake Lock' : 'Wake Lock'), ''],
+      ['آخر خطأ', wake.err || '—', wake.err ? 'bad' : ''],
+      ['المتصفح', navigator.userAgent, 'ua']
+    ];
+    $('diagList').innerHTML = rows.map(function (r) {
+      return '<dt>' + r[0] + '</dt><dd dir="auto" class="' + r[2] + '">' + escapeHtml(String(r[1])) + '</dd>';
+    }).join('');
+  }
+  $('btnDiag').addEventListener('click', function () {
+    closeSheet(); renderDiag(); showSheet(diagSheet, diagBackdrop);
+    setTimeout(renderDiag, 1500);   // إبقاء الشاشة يبدأ مع اللمسة نفسها، فنحدّث الحالة بعدها بلحظة
+  });
+
   // ===== تلميح تثبيت المصحف على الشاشة الرئيسية (آيفون وآيباد فقط) =====
   // أندرويد يعرض زر التثبيت بنفسه، أما الآيفون فالتثبيت من قائمة المشاركة في المتصفح.
   var ua = navigator.userAgent;
-  var isIOS = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  var isStandalone = navigator.standalone === true ||
-    !!(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+  var isIOS = IOS, isStandalone = STANDALONE;
   var installSheet = $('installSheet'), installBackdrop = $('installBackdrop');
   var HINT_KEY = 'mushaf.iosInstallHint';
   function openInstallHint() {
@@ -1933,7 +2059,7 @@ window.MUSHAF_DATA = {
     $('btnInstallHint').addEventListener('click', function () { closeSheet(); openInstallHint(); });
     var hintShown = 0;
     try { hintShown = +localStorage.getItem(HINT_KEY) || 0; } catch (e) { /* ignore */ }
-    if (Date.now() - hintShown > 30 * 24 * 3600 * 1000) {
+    if (!storeNoticeShown && Date.now() - hintShown > 30 * 24 * 3600 * 1000) {
       var hintTries = 0;
       var showHintWhenFree = function () {
         var busy = document.querySelector('.sheet.open, .panel.open') || !$('gotoDialog').hidden;
@@ -1947,7 +2073,9 @@ window.MUSHAF_DATA = {
   // ===== زر الرجوع ومفتاح Esc يغلقان النوافذ المفتوحة =====
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;
-    if (installSheet.classList.contains('open')) closeInstallHint();
+    if (diagSheet.classList.contains('open')) hideSheet(diagSheet, diagBackdrop);
+    else if (storeSheet.classList.contains('open')) hideSheet(storeSheet, storeBackdrop);
+    else if (installSheet.classList.contains('open')) closeInstallHint();
     else if (!dialog.hidden) closeGoto();
     else if (sheet.classList.contains('open')) closeSheet();
     else if (ayahSheet.classList.contains('open')) closeAyahSheet();
